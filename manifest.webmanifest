@@ -1,0 +1,8 @@
+{
+  "name": "Ersja Bogów – Tester",
+  "short_name": "Ersja Bogów",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#211a15",
+  "theme_color": "#211a15"
+}

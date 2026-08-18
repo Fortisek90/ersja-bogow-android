@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#211a15">
+<link rel="manifest" href="manifest.webmanifest">
+<title>Ersja Bogów – Web Tester 0.2</title>
+<style>
+:root{--bg:#211a15;--panel:#2f241d;--gold:#d9b16e;--paper:#f1dfbd;--ink:#f7eddd;--muted:#baa990}
+*{box-sizing:border-box} body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+button,select,input{font:inherit}
+.top{position:sticky;top:0;z-index:20;background:#17120f;border-bottom:1px solid #5c4937;padding:10px 12px;display:flex;align-items:center;gap:10px}
+.top h1{font-size:20px;margin:0;color:var(--gold);flex:1}.small{font-size:12px;color:var(--muted)}
+.wrap{display:grid;grid-template-columns:1fr 320px;min-height:calc(100vh - 55px)}
+@media(max-width:800px){.wrap{display:block}.side{position:static!important;width:auto!important}.mapPane{min-height:62vh}}
+.mapPane{position:relative;overflow:auto;background:radial-gradient(circle at 50% 40%,#5b4838,#261f1a)}
+.side{background:#ead9b8;color:#2a2119;padding:12px;position:sticky;top:55px;height:calc(100vh - 55px);overflow:auto}
+.card{background:#fff6e6;border:1px solid #c7ae87;border-radius:14px;padding:12px;margin-bottom:10px}
+.card h3{margin:0 0 8px;color:#624326}.row{display:flex;gap:6px;flex-wrap:wrap}.stat{background:#e0c69a;padding:6px 8px;border-radius:9px;font-weight:700}
+.btn{border:0;background:#6c472c;color:white;border-radius:10px;padding:9px 11px;font-weight:700}.btn.alt{background:#a98255;color:#24180f}.btn.red{background:#88463d}.btn.green{background:#4d714d}
+#board{display:block;margin:auto;min-width:900px;min-height:620px}
+.setup{max-width:760px;margin:25px auto;padding:18px}.setup h2{color:var(--gold)}.setup select{width:100%;padding:10px;border-radius:10px;margin:6px 0}
+.hidden{display:none}
+.log{max-height:140px;overflow:auto;background:#241b16;color:#eadcc7;border-radius:10px;padding:8px;font-size:12px}
+.badge{display:inline-block;padding:3px 7px;border-radius:10px;background:#d9bf94;margin:2px}
+.legend{font-size:12px;line-height:1.7}
+</style>
+</head>
+<body>
+<div class="top"><h1>ERSJA BOGÓW</h1><span class="small">Web Tester 0.2</span><button class="btn alt" onclick="saveGame()">Zapisz</button><button class="btn alt" onclick="loadGame()">Wczytaj</button></div>
+
+<div id="setup" class="setup">
+  <h2>Nowa rozgrywka testowa</h2>
+  <div class="card">
+    <label>Liczba graczy</label>
+    <select id="playerCount" onchange="renderNationSelectors()">
+      <option>2</option><option>3</option><option selected>4</option><option>5</option><option>6</option>
+    </select>
+    <div id="nationSelectors"></div>
+    <button class="btn green" onclick="startGame()">Rozpocznij test</button>
+  </div>
+  <div class="card"><b>W tej wersji:</b> wybór Nacji, hot-seat 2–6 graczy, mapa heksowa, ruch, atak grupowy, bonusy terenu, zasoby, produkcja, rozwój miejscowości, Populacja, Wiara, podstawowe budowanie i zapis lokalny.</div>
+</div>
+
+<div id="game" class="wrap hidden">
+  <div class="mapPane"><svg id="board" viewBox="0 0 1000 700"></svg></div>
+  <aside class="side">
+    <div class="card">
+      <h3 id="turnTitle">Tura</h3>
+      <div id="nationInfo"></div>
+    </div>
+    <div class="card">
+      <h3>Zasoby</h3>
+      <div id="resources" class="row"></div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn alt" onclick="produce()">Produkcja</button>
+        <button class="btn alt" onclick="testerResources()">+5 tester</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Wybrany heks</h3>
+      <div id="selectedInfo">Kliknij heks.</div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn" onclick="build('Pole')">Pole</button>
+        <button class="btn" onclick="build('Tartak')">Tartak</button>
+        <button class="btn" onclick="build('Kamieniołom')">Kamieniołom</button>
+        <button class="btn" onclick="build('Kopalnia')">Kopalnia</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn" onclick="recruit('M')">+ Wręcz</button>
+        <button class="btn" onclick="recruit('D')">+ Dystans</button>
+        <button class="btn alt" onclick="upgradeSettlement()">Rozwiń miejscowość</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Akcje</h3>
+      <button class="btn green" onclick="endTurn()">Koniec tury</button>
+      <button class="btn red" onclick="resetGame()">Nowa gra</button>
+    </div>
+    <div class="card"><h3>Legenda</h3><div class="legend">
+      🌾 Równina 1 PR • 🌲 Las 2 PR/+1 O • ⛰️ Wzgórza 2 PR/+1 O • 🏔️ Góry 3 PR/+2 O • 🐊 Bagna 3 PR/−1 A napastnika • 🏜️ Pustynia 2 PR<br>
+      Jednostka wręcz A2/O2/Z1 • dystans A2/O1/Z2 • max 3 jednostki/heks • brak automatycznego kontrataku.
+    </div></div>
+    <div class="card"><h3>Dziennik</h3><div id="log" class="log"></div></div>
+  </aside>
+</div>
+
+<script>
+const NATIONS = [{"name": "Egipt", "herald": "Krokodyl", "traits": ["Dar Nilu", "Władcy Pustyni"]}, {"name": "Rzym", "herald": "Orzeł", "traits": ["Drogi Imperium", "Machina Wojenna"]}, {"name": "Grecja", "herald": "Sowa", "traits": ["Morscy Kupcy", "Dyplomacja Polis"]}, {"name": "Wikingowie", "herald": "Niedźwiedź z Lodu", "traits": ["Wyprawy Wojenne", "Osadnicy Północy"]}, {"name": "Aztekowie", "herald": "Pierzasta Wężowa Kapłanka", "traits": ["Wiara przez Zwycięstwo", "Krwawy Triumf"]}, {"name": "Chiny", "herald": "Małpa", "traits": ["Wielkie Budowle", "Wiedza Cesarstwa"]}, {"name": "Japonia", "herald": "Lisica – Duch Kitsune", "traits": ["Dyscyplina", "Droga Mistrza"]}, {"name": "Celtowie", "herald": "Jelenica – Strażniczka Kniei", "traits": ["Dzieci Lasów", "Wiedza Druidów"]}, {"name": "Persowie", "herald": "Lew Drogi Królewskiej", "traits": ["Satrapie", "Droga Królewska"]}, {"name": "Babilończycy", "herald": "Byk Nergala", "traits": ["Astronomia Babilońska", "Wielki Babilon"]}, {"name": "Kartagińczycy", "herald": "Słonica Kartaginy", "traits": ["Najemnicy Kartaginy", "Wojna na obcej ziemi"]}, {"name": "Sumerowie", "herald": "Prorokini Eridu", "traits": ["Zigguraty", "Spichlerze Uruk"]}, {"name": "Indie", "herald": "Tygrys Bengalski", "traits": ["Szlak Przypraw", "Bogactwa Subkontynentu"]}, {"name": "Inkowie", "herald": "Puma Andyjska", "traits": ["Dzieci Andów", "Tarasy Rolnicze"]}, {"name": "Korea", "herald": "Dzik – Strażnik Twierdzy", "traits": ["Twierdze Górskie", "Kamieniarze Joseon"]}, {"name": "Hunowie", "herald": "Koń Stepowy – Strażnik Obozu", "traits": ["Władcy Stepu", "Koczownicze Obozy"]}];
+
+const TERR = {
+  P:{name:'Równina', move:1, def:0, color:'#c6b875', icon:'🌾'},
+  F:{name:'Las', move:2, def:1, color:'#53744d', icon:'🌲'},
+  H:{name:'Wzgórza', move:2, def:1, color:'#987f57', icon:'⛰️'},
+  M:{name:'Góry', move:3, def:2, color:'#8b8983', icon:'🏔️'},
+  S:{name:'Bagna', move:3, def:0, color:'#627761', icon:'🐊'},
+  D:{name:'Pustynia', move:2, def:0, color:'#d7b16d', icon:'🏜️'},
+  T:{name:'Tundra', move:2, def:0, color:'#c7d0ca', icon:'❄️'},
+  V:{name:'Wulkan', move:3, def:0, color:'#805f52', icon:'🌋'}
+};
+
+const COSTS = {
+  Pole:{wood:2,stone:1},
+  Tartak:{wood:1,stone:2},
+  Kamieniołom:{wood:2,iron:1},
+  Kopalnia:{wood:2,stone:2,iron:1},
+  M:{food:2,iron:1},
+  D:{food:2,wood:1,iron:1}
+};
+
+let state=null, selectedHex=null, selectedUnit=null;
+
+function renderNationSelectors(){
+  const n=+document.getElementById('playerCount').value;
+  const box=document.getElementById('nationSelectors'); box.innerHTML='';
+  for(let i=0;i<n;i++){
+    const s=document.createElement('select'); s.id='nation'+i;
+    NATIONS.forEach((x,j)=>{const o=document.createElement('option');o.value=j;o.textContent=`Gracz ${i+1}: ${x.name} – ${x.herald}`;s.appendChild(o)});
+    s.selectedIndex=i; box.appendChild(s);
+  }
+}
+renderNationSelectors();
+
+function makeMap(){
+  const W=11,H=7, arr=[];
+  const seq=['P','F','H','D','P','S','P','M','T'];
+  for(let r=0;r<H;r++)for(let q=0;q<W;q++){
+    let t=seq[(q*2+r*5)%seq.length];
+    if((q+r)%9===0)t='M';
+    arr.push({q,r,t,owner:null,settlement:0,buildings:[],units:[]});
+  }
+  const towns=[[1,5,1],[3,2,1],[5,3,2],[8,1,1],[9,5,2],[6,5,3]];
+  towns.forEach(([q,r,l])=>hex(q,r,arr).settlement=l);
+  return arr;
+}
+
+function hex(q,r,map=state.map){return map.find(h=>h.q===q&&h.r===r)}
+function startGame(){
+  const count=+document.getElementById('playerCount').value;
+  const picks=[...Array(count)].map((_,i)=>+document.getElementById('nation'+i).value);
+  const map=makeMap();
+  state={
+    round:1,turn:0,
+    players:picks.map((idx,i)=>({nation:idx,food:6,wood:6,stone:6,iron:4,pop:0,faith:0,prod:{Pole:1,Tartak:1,Kamieniołom:0,Kopalnia:0}})),
+    map,log:[]
+  };
+  const starts=[[1,5],[9,1],[9,5],[1,1],[5,0],[5,6]];
+  state.players.forEach((p,i)=>{
+    const h=hex(starts[i][0],starts[i][1]); h.owner=i; h.settlement=Math.max(h.settlement,1);
+    h.units.push({player:i,type:'M'},{player:i,type:'M'},{player:i,type:'D'});
+  });
+  document.getElementById('setup').classList.add('hidden');document.getElementById('game').classList.remove('hidden');
+  logMsg('Rozpoczęto test.'); render();
+}
+function saveGame(){if(!state)return;localStorage.setItem('ersjaSave',JSON.stringify(state));alert('Zapisano grę na tym telefonie.')}
+function loadGame(){const s=localStorage.getItem('ersjaSave');if(!s){alert('Brak zapisu.');return}state=JSON.parse(s);document.getElementById('setup').classList.add('hidden');document.getElementById('game').classList.remove('hidden');render()}
+function resetGame(){if(confirm('Rozpocząć nową grę?')){localStorage.removeItem('ersjaSave');location.reload()}}
+function logMsg(x){state.log.unshift(`R${state.round}: ${x}`);state.log=state.log.slice(0,25)}
+
+function center(q,r){const R=42;return [80+Math.sqrt(3)*R*(q+r/2),65+1.5*R*r]}
+function poly(cx,cy,R=40){return [...Array(6)].map((_,i)=>{const a=(Math.PI/180)*(60*i-30);return `${cx+R*Math.cos(a)},${cy+R*Math.sin(a)}`}).join(' ')}
+function renderBoard(){
+  const svg=document.getElementById('board');svg.innerHTML='';
+  state.map.forEach(h=>{
+    const [cx,cy]=center(h.q,h.r); const g=document.createElementNS('http://www.w3.org/2000/svg','g');
+    const p=document.createElementNS('http://www.w3.org/2000/svg','polygon');p.setAttribute('points',poly(cx,cy));p.setAttribute('fill',TERR[h.t].color);p.setAttribute('stroke','#30251e');p.setAttribute('stroke-width','2');
+    if(selectedHex===h){p.setAttribute('stroke','#fff');p.setAttribute('stroke-width','4')}
+    p.onclick=()=>selectHex(h);g.appendChild(p);
+    const tx=document.createElementNS('http://www.w3.org/2000/svg','text');tx.setAttribute('x',cx);tx.setAttribute('y',cy-12);tx.setAttribute('text-anchor','middle');tx.setAttribute('font-size','15');tx.textContent=TERR[h.t].icon;tx.style.pointerEvents='none';g.appendChild(tx);
+    if(h.settlement){
+      const t=document.createElementNS('http://www.w3.org/2000/svg','text');t.setAttribute('x',cx);t.setAttribute('y',cy+7);t.setAttribute('text-anchor','middle');t.setAttribute('font-size','15');t.setAttribute('font-weight','700');t.textContent=['','W','O','M'][h.settlement];t.style.pointerEvents='none';g.appendChild(t);
+    }
+    h.units.forEach((u,i)=>{
+      const c=document.createElementNS('http://www.w3.org/2000/svg','circle');c.setAttribute('cx',cx+(i-1)*16);c.setAttribute('cy',cy+24);c.setAttribute('r','9');c.setAttribute('fill',['#d7aa45','#b14d44','#4b78b5','#6d965b','#9b66a7','#d27c43'][u.player]);c.setAttribute('stroke','#fff');c.setAttribute('stroke-width',selectedUnit===u?'3':'1');c.onclick=(e)=>{e.stopPropagation();selectUnit(h,u)};g.appendChild(c);
+      const ut=document.createElementNS('http://www.w3.org/2000/svg','text');ut.setAttribute('x',cx+(i-1)*16);ut.setAttribute('y',cy+28);ut.setAttribute('text-anchor','middle');ut.setAttribute('font-size','9');ut.setAttribute('fill','#fff');ut.textContent=u.type;ut.style.pointerEvents='none';g.appendChild(ut);
+    });
+    svg.appendChild(g);
+  });
+}
+function render(){
+  const p=state.players[state.turn],n=NATIONS[p.nation];
+  document.getElementById('turnTitle').textContent=`Runda ${state.round} • ${n.name}`;
+  document.getElementById('nationInfo').innerHTML=`<b>Herold:</b> ${n.herald}<br><span class=badge>${n.traits[0]}</span><span class=badge>${n.traits[1]}</span><br>Populacja: <b>${p.pop}</b> • Wiara: <b>${p.faith}</b>`;
+  document.getElementById('resources').innerHTML=`<span class=stat>🌾 ${p.food}</span><span class=stat>🪵 ${p.wood}</span><span class=stat>🪨 ${p.stone}</span><span class=stat>⛏️ ${p.iron}</span>`;
+  document.getElementById('selectedInfo').innerHTML=selectedHex?`${TERR[selectedHex.t].name}<br>Miejscowość: ${['brak','Wioska','Osada','Miasto'][selectedHex.settlement]}<br>Budynki: ${selectedHex.buildings.join(', ')||'brak'}<br>Jednostki: ${selectedHex.units.length}/3`:'Kliknij heks.';
+  document.getElementById('log').innerHTML=state.log.map(x=>`<div>${x}</div>`).join('');
+  renderBoard();
+}
+function selectHex(h){
+  if(selectedUnit){
+    const from=selectedUnit.hex, u=selectedUnit.unit;
+    if(h.units.some(x=>x.player!==state.turn)){attemptAttack(h);return}
+    if(distance(from,h)===1 && TERR[h.t].move<=3 && h.units.filter(x=>x.player===state.turn).length<3){
+      from.units.splice(from.units.indexOf(u),1);h.units.push(u);logMsg(`Ruch na ${TERR[h.t].name}.`);selectedUnit=null;selectedHex=h;render();return
+    }
+  }
+  selectedHex=h;selectedUnit=null;render();
+}
+function selectUnit(h,u){selectedHex=h;if(u.player===state.turn){selectedUnit={hex:h,unit:u};logMsg(`Wybrano jednostkę ${u.type}.`)}render()}
+function distance(a,b){const ay=-a.q-a.r,by=-b.q-b.r;return Math.max(Math.abs(a.q-b.q),Math.abs(ay-by),Math.abs(a.r-b.r))}
+function attemptAttack(target){
+  const attackers=[];
+  state.map.forEach(h=>h.units.forEach(u=>{if(u.player===state.turn && distance(h,target)<= (u.type==='M'?1:2))attackers.push({h,u})}));
+  const defenders=target.units.filter(u=>u.player!==state.turn); if(!defenders.length)return;
+  const atk=attackers.length*2-(target.t==='S'?1:0);
+  const def=defenders.reduce((s,u)=>s+(u.type==='M'?2:1),0)+TERR[target.t].def+(target.settlement||0);
+  const diff=atk-def;let losses=diff<=0?0:diff<=2?1:diff<=4?2:3;losses=Math.min(losses,defenders.length);
+  for(let i=0;i<losses;i++){const idx=target.units.indexOf(defenders[i]);if(idx>=0)target.units.splice(idx,1)}
+  logMsg(`Walka: A ${atk} vs O ${def}; straty ${losses}.`);selectedUnit=null;render();
+}
+function pay(p,c){for(const k in c)if(p[k]<(c[k]||0))return false;for(const k in c)p[k]-=c[k];return true}
+function build(type){
+  if(!selectedHex){alert('Wybierz heks.');return}const p=state.players[state.turn];
+  if(selectedHex.owner!==state.turn){alert('Budujesz tylko na własnym heksie/miejscowości w tym prototypie.');return}
+  if(!pay(p,COSTS[type])){alert('Brak zasobów.');return}
+  selectedHex.buildings.push(type);p.prod[type]=(p.prod[type]||0)+1;logMsg(`Zbudowano ${type}.`);render()
+}
+function recruit(type){
+  if(!selectedHex||selectedHex.owner!==state.turn){alert('Wybierz własną miejscowość.');return}
+  if(selectedHex.units.filter(u=>u.player===state.turn).length>=3){alert('Limit 3 jednostek/heks.');return}
+  const p=state.players[state.turn];if(!pay(p,COSTS[type])){alert('Brak zasobów.');return}
+  selectedHex.units.push({player:state.turn,type});logMsg(`Zwerbowano ${type==='M'?'wręcz':'dystans'}.`);render()
+}
+function upgradeSettlement(){
+  if(!selectedHex||selectedHex.owner!==state.turn){alert('Wybierz własną miejscowość.');return}
+  const p=state.players[state.turn];
+  if(selectedHex.settlement===1){if(!pay(p,{wood:4,stone:4,food:2}))return alert('Brak zasobów');selectedHex.settlement=2;logMsg('Wioska → Osada.')}
+  else if(selectedHex.settlement===2){if(!pay(p,{wood:6,stone:7,iron:3,food:3}))return alert('Brak zasobów');selectedHex.settlement=3;logMsg('Osada → Miasto.')}
+  else alert('Brak możliwego awansu.');render()
+}
+function produce(){
+  const p=state.players[state.turn];
+  p.food+=2*(p.prod.Pole||0);p.wood+=2*(p.prod.Tartak||0);p.stone+=2*(p.prod.Kamieniołom||0);p.iron+=2*(p.prod.Kopalnia||0);
+  logMsg('Rozliczono produkcję.');render()
+}
+function testerResources(){const p=state.players[state.turn];p.food+=5;p.wood+=5;p.stone+=5;p.iron+=5;render()}
+function endTurn(){selectedUnit=null;selectedHex=null;state.turn++;if(state.turn>=state.players.length){state.turn=0;state.round++;}logMsg('Koniec tury.');render()}
+</script>
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.register('./sw.js').catch(()=>{});}</script></body></html>
